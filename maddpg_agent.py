@@ -12,15 +12,15 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
-BATCH_SIZE = 128        # minibatch size
+BATCH_SIZE = 256        # minibatch size
 GAMMA = 0.99            # discount factor
-TAU = 4e-2              # for soft update of target parameters
+TAU = 2e-2              # for soft update of target parameters
 LR_ACTOR = 1e-3         # learning rate of the actor
 LR_CRITIC = 1e-3        # learning rate of the critic
 WEIGHT_DECAY = 0.0      # L2 weight decay
 
-N_LEARN_UPDATES = 4     # number of learning updates
-N_TIME_STEPS = 2        # every n time step do update
+N_LEARN_UPDATES = 9    # number of learning updates
+N_TIME_STEPS = 3        # every n time step do update
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -54,7 +54,7 @@ class Agent():
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
         
         # Noise process
-        self.noise = OUNoise(action_size, random_seed, scale = .1)
+        self.noise = OUNoise(action_size, random_seed, scale = 0.2)
 
 
     def act(self, state, add_noise=True, noise_amplitude=0.0):
@@ -164,18 +164,20 @@ class MultiAgent():
         #print("Q_targets_next.size() {}".format(Q_targets_next.size()))
         
         # Compute Q targets for current states (y_i)
-        Q_targets = rewards_agent[agent_num] + (gamma * Q_targets_next * (1 - dones_agent[agent_num]))
+#         Q_targets = rewards_agent[agent_num] + (gamma * Q_targets_next * (1 - dones_agent[agent_num]))
+        Q_targets = rewards+ (gamma * Q_targets_next * (1 - dones))
 
         # Compute critic loss
         critic_states = torch.cat([states, actions],dim=1).to(device)
 
 #         critic_states = states
         Q_expected = self.agents[agent_num].critic_local(critic_states,actions_agent[agent_num])
+  
         critic_loss = F.mse_loss(Q_expected, Q_targets)
         # Minimize the loss
         self.agents[agent_num].critic_optimizer.zero_grad()
         critic_loss.backward()
-#         torch.nn.utils.clip_grad_norm_(self.agents[agent_num].critic_local.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(self.agents[agent_num].critic_local.parameters(), 1)
         self.agents[agent_num].critic_optimizer.step()
 
         # ---------------------------- update actor ---------------------------- #
